@@ -9,13 +9,20 @@ import numpy as np
 class MyKmeans(BaseEstimator, TransformerMixin):
     """
     KMeans聚类，可实现基本聚类和Kmeans++聚类
+
+    params:
+    init_method: ‘random' or 'kmeans++', 初始点的取法
+    n_init: int, 取初始点的次数，用于重复计算取最优结果
+    max_iter: int, 最大迭代次数
+    distance_method: 'Euclidean' or 'Manhattan', default='Euclidean'，距离的计算方式
     """
 
-    def __init__(self, k=5, init_method='kmeans++', n_init=10, max_iter=300, random_state=42):
+    def __init__(self, k=5, init_method='kmeans++', n_init=10, max_iter=300, distance_method='Manhattan', random_state=42):
         self.k = k
         self.init_method = init_method
         self.n_init = n_init
         self.max_iter = max_iter
+        self.distance_method = distance_method
         self.random_state = check_random_state(random_state)
         self.cluster_centers_ = None
         self.labels_ = None
@@ -169,6 +176,7 @@ class MyKmeans(BaseEstimator, TransformerMixin):
         :return:
         """
         if method == 'Euclidean': return np.sqrt(np.sum(np.power(X - center, 2), axis=1))
+        if method == 'Manhattan': return np.sum(abs(X - center), axis=1)
 
 
 X = load_iris(return_X_y=True)[0]
