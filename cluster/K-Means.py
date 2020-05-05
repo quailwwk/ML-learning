@@ -11,13 +11,14 @@ class MyKmeans(BaseEstimator, TransformerMixin):
     KMeans聚类，可实现基本聚类和Kmeans++聚类
 
     params:
-    init_method: ‘random' or 'kmeans++', 初始点的取法
-    n_init: int, 取初始点的次数，用于重复计算取最优结果
-    max_iter: int, 最大迭代次数
-    distance_method: 'Euclidean' or 'Manhattan', default='Euclidean'，距离的计算方式
+        init_method: ‘random' or 'kmeans++', 初始点的取法
+        n_init: int, 取初始点的次数，用于重复计算取最优结果
+        max_iter: int, 最大迭代次数
+        distance_method: 'Euclidean' or 'Manhattan', default='Euclidean'，距离的计算方式
     """
 
-    def __init__(self, k=5, init_method='kmeans++', n_init=10, max_iter=300, distance_method='Manhattan', random_state=42):
+    def __init__(self, k=5, init_method='kmeans++', n_init=10, max_iter=300, distance_method='Manhattan',
+                 random_state=42):
         self.k = k
         self.init_method = init_method
         self.n_init = n_init
@@ -28,7 +29,7 @@ class MyKmeans(BaseEstimator, TransformerMixin):
         self.labels_ = None
         self.score_ = None
 
-    def init_centers(self, X, y=None, method=None):
+    def _init_centers(self, X, y=None, method=None):
         """
         初始化聚类中心
         :param X:array-like or sparse matrix, shape=(n_samples, n_features)
@@ -42,9 +43,9 @@ class MyKmeans(BaseEstimator, TransformerMixin):
         if method == 'kmeans++':
             # kmeans++只需指定一组初始点
             init_indexs = self.random_state.randint(0, X.shape[0], size=self.n_init)
-            return self.kmeans_plus(X, init_indexs)
+            return self._kmeans_plus(X, init_indexs)
 
-    def kmeans_plus(self, X, init_indexs, y=None):
+    def _kmeans_plus(self, X, init_indexs, y=None):
         """
         kmeans++ 确定初始中心点
         :param X:
@@ -58,15 +59,16 @@ class MyKmeans(BaseEstimator, TransformerMixin):
             distances = np.full((X.shape[0],), np.inf)
             min_distances = distances
             for _ in range(self.k - 1):
-                distances = self.calcu_distance(X, centers[-1])  # 只计算上一步新加入的中心点的距离即可
+                distances = self._calcu_distance(X, centers[-1])  # 只计算上一步新加入的中心点的距离即可
                 min_distances = np.minimum(min_distances, distances)
                 prob = np.power(min_distances, 2) / np.power(min_distances, 2).sum()
-                centers = np.vstack((centers, X[self.RouletteWheel(prob)]))
+                centers = np.vstack((centers, X[self._RouletteWheel(prob)]))
             res.append(centers)
 
         return res
 
-    def RouletteWheel(self, prob):
+    @staticmethod
+    def _RouletteWheel(prob):
         """
         轮盘法
         :param prob:
@@ -87,7 +89,7 @@ class MyKmeans(BaseEstimator, TransformerMixin):
             用不同的初始点重复n_init次，取平方损失函数最小(score最大)的作为最终结果
         """
         best_score_ = -np.inf
-        all_centers = self.init_centers(X)
+        all_centers = self._init_centers(X)
         for i in range(self.n_init):
             new_centers = all_centers[i]
             # 保证初始的old_centers != new_centers
@@ -96,33 +98,33 @@ class MyKmeans(BaseEstimator, TransformerMixin):
             while not all([np.allclose(x, y) for x, y in zip(old_centers, new_centers)]) and times <= self.max_iter:
                 times += 1
                 old_centers = new_centers
-                new_centers, new_res = self.one_step(X, new_centers)
+                new_centers, new_res = self._one_step(X, new_centers)
             score = self.score(X, centers=new_centers)
             if score >= best_score_:
                 best_score_ = score
                 best_centers_ = new_centers
-                best_labels_ = self._transform(X, centers=new_centers)
+                best_labels_ = self.transform(X, centers=new_centers)
         self.cluster_centers_ = best_centers_
         self.labels_ = best_labels_
         self.score_ = best_score_
         return self
 
     def fit_transform(self, X, y=None, **fit_params):
-        return self.fit(X)._transform(X)
+        return self.fit(X).transform(X)
 
     def fit_predict(self, X, y=None):
         return self.fit(X).labels_
 
-    def _predict(self, X, y=None, centers=None):
+    def predict(self, X, y=None, centers=None):
         """
         聚类结果
         若未指定centers， 则必须先fit
         :return:
         """
-        distances = self._transform(X, centers=centers)
+        distances = self.transform(X, centers=centers)
         return np.argmin(distances, axis=1)
 
-    def _transform(self, X, y=None, centers=None):
+    def transform(self, X, y=None, centers=None):
         """
         将输入数据转换为与各个聚类中心的距离
         若未指定centers， 则必须先fit
@@ -133,7 +135,7 @@ class MyKmeans(BaseEstimator, TransformerMixin):
         if centers is None: centers = self.cluster_centers_
         distances = np.zeros((X.shape[0], self.k))
         for i in range(self.k):
-            distances[:, i] = self.calcu_distance(X, centers[i])
+            distances[:, i] = self._calcu_distance(X, centers[i])
         return distances
 
     def score(self, X, y=None, centers=None):
@@ -143,13 +145,13 @@ class MyKmeans(BaseEstimator, TransformerMixin):
         :return:
         """
         if centers is None: centers = self.cluster_centers_
-        res = self._predict(X, centers=centers)
+        res = self.predict(X, centers=centers)
         score = 0
         for i, center in enumerate(centers):
-            score -= np.power(self.calcu_distance(X[res == i], center), 2).sum()
+            score -= np.power(self._calcu_distance(X[res == i], center), 2).sum()
         return score
 
-    def one_step(self, X, centers, y=None):
+    def _one_step(self, X, centers, y=None):
         """
         一步迭代，将每个样本分入距离最近的类中，再计算每个类别的平均值作为新的聚类中心
         :param X:
@@ -160,7 +162,7 @@ class MyKmeans(BaseEstimator, TransformerMixin):
         distance = np.zeros((X.shape[0], len(centers)))
 
         for i, center in enumerate(centers):
-            distance[:, i] = self.calcu_distance(X, center)
+            distance[:, i] = self._calcu_distance(X, center)
 
         res = np.argmin(distance, axis=1)
 
@@ -169,7 +171,8 @@ class MyKmeans(BaseEstimator, TransformerMixin):
 
         return centers, res
 
-    def calcu_distance(self, X, center, method='Euclidean'):
+    @staticmethod
+    def _calcu_distance(X, center, method='Euclidean'):
         """
         计算样本与某个中心点间的距离
         :param method:
